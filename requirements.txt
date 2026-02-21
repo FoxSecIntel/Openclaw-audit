@@ -1,0 +1,2 @@
+# Intentionally minimal dependency surface.
+# Standard library only for current implementation.
