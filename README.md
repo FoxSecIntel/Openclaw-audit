@@ -34,9 +34,12 @@ flowchart TD
     A --> C[Config discovery and parser]
     C --> D[Secret pattern scan]
     C --> E[Gateway bind assessment]
+    A --> P[Directory permission check ~/.openclaw mode]
     C --> F[Plugin and Feishu checks]
-    A --> G[Coloured terminal findings]
+    A --> G[Terminal output mode]
+    A --> J[JSON output mode]
     G --> H[Critical, warning, pass summary]
+    J --> K[Structured findings + summary + exit code]
 ```
 
 ## Threat model
