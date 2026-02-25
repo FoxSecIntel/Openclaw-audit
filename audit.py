@@ -8,6 +8,7 @@ Barbell strategy implementation:
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -72,6 +73,32 @@ def load_config(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def resolve_config(explicit_config: str | None) -> tuple[dict[str, Any] | None, Path | None, list[Path]]:
+    home = Path(os.path.expanduser("~"))
+    attempted: list[Path] = []
+
+    if explicit_config:
+        p = Path(explicit_config).expanduser().resolve()
+        attempted.append(p)
+        cfg = load_config(p)
+        return cfg, (p if cfg else None), attempted
+
+    candidates = [
+        home / ".openclaw" / "config.json",
+        home / ".openclaw" / "openclaw.json",
+        Path("/root/.openclaw/openclaw.json"),
+        Path("/root/.openclaw/config.json"),
+    ]
+
+    for p in candidates:
+        attempted.append(p)
+        cfg = load_config(p)
+        if cfg is not None:
+            return cfg, p, attempted
+
+    return None, None, attempted
+
+
 def walk_items(obj: Any, prefix: str = ""):
     if isinstance(obj, dict):
         for k, v in obj.items():
@@ -103,9 +130,9 @@ def find_plaintext_keys(config: dict[str, Any]) -> list[str]:
     return hits
 
 
-def check_gateway_bind(config: dict[str, Any] | None) -> Finding:
+def check_gateway_bind(config: dict[str, Any] | None, config_hint: str) -> Finding:
     if not config:
-        return Finding("WARN", "Gateway bind", "Could not read ~/.openclaw/config.json")
+        return Finding("WARN", "Gateway bind", f"Could not read OpenClaw config ({config_hint})")
 
     bind = (
         config.get("gateway", {}).get("bind")
@@ -146,9 +173,9 @@ def check_version() -> Finding:
     return Finding("PASS", "OpenClaw version", f"Version {v} is at or above {MIN_SAFE_VERSION}")
 
 
-def check_plaintext_api_keys(config: dict[str, Any] | None) -> Finding:
+def check_plaintext_api_keys(config: dict[str, Any] | None, config_hint: str) -> Finding:
     if not config:
-        return Finding("WARN", "Plaintext API keys", "Could not read ~/.openclaw/config.json")
+        return Finding("WARN", "Plaintext API keys", f"Could not read OpenClaw config ({config_hint})")
     hits = find_plaintext_keys(config)
     if hits:
         preview = ", ".join(hits[:5])
@@ -181,14 +208,18 @@ def print_findings(findings: list[Finding]) -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Audit OpenClaw deployment security posture")
+    parser.add_argument("--config", help="Path to OpenClaw config file (optional)")
+    args = parser.parse_args()
+
     home = Path(os.path.expanduser("~"))
-    config_path = home / ".openclaw" / "config.json"
-    config = load_config(config_path)
+    config, config_path, attempted = resolve_config(args.config)
+    hint = str(config_path) if config_path else f"tried: {', '.join(str(p) for p in attempted)}"
 
     findings: list[Finding] = [
         check_version(),
-        check_plaintext_api_keys(config),
-        check_gateway_bind(config),
+        check_plaintext_api_keys(config, hint),
+        check_gateway_bind(config, hint),
         check_feishu(config, home),
     ]
 
