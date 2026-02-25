@@ -18,7 +18,7 @@ The current `audit.py` release evaluates:
 1. **Version exposure check**
    - Flags OpenClaw versions below `2026.1.29` as vulnerable to **CVE-2026-25253**.
 2. **Secret handling check**
-   - Scans `~/.openclaw/config.json` for likely plaintext API keys and secrets.
+   - Scans discovered OpenClaw config files (`~/.openclaw/config.json`, `~/.openclaw/openclaw.json`, and root equivalents) for likely plaintext API keys and secrets.
 3. **Gateway exposure check**
    - Detects risky bind settings such as `0.0.0.0`.
 4. **Feishu extension check**
@@ -29,7 +29,7 @@ The current `audit.py` release evaluates:
 ```mermaid
 flowchart TD
     A[audit.py] --> B[Version probe via openclaw --version]
-    A --> C[Config parser ~/.openclaw/config.json]
+    A --> C[Config discovery and parser]
     C --> D[Secret pattern scan]
     C --> E[Gateway bind assessment]
     C --> F[Plugin and Feishu checks]
@@ -84,8 +84,24 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
+# Default coloured terminal output
 python3 audit.py
+
+# Force a specific config path
+python3 audit.py --config /root/.openclaw/openclaw.json
+
+# JSON output for CI, pipelines, and automation
+python3 audit.py --json
 ```
+
+JSON output includes:
+
+- `timestamp`
+- `config_path_used`
+- `config_paths_attempted`
+- `findings`
+- `summary`
+- `exit_code`
 
 Exit code behaviour:
 

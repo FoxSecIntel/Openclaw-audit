@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +58,6 @@ def get_openclaw_version() -> str | None:
         return None
     try:
         out = subprocess.check_output(["openclaw", "--version"], text=True, stderr=subprocess.STDOUT).strip()
-        # keep first token that looks like version
         m = re.search(r"\d+\.\d+\.\d+", out)
         return m.group(0) if m else out.splitlines()[0].strip()
     except Exception:
@@ -122,7 +122,6 @@ def find_plaintext_keys(config: dict[str, Any]) -> list[str]:
             continue
         name = path.split(".")[-1]
         if key_name_re.search(name) and value.strip():
-            # likely plaintext if not clearly env reference
             if value.startswith("${") and value.endswith("}"):
                 continue
             if value_re.match(value.strip()) or len(value.strip()) > 20:
@@ -207,9 +206,38 @@ def print_findings(findings: list[Finding]) -> None:
     print(f"{Colour.RED}Critical: {crit}{Colour.RESET}  {Colour.YELLOW}Warnings: {warn}{Colour.RESET}  {Colour.GREEN}Pass: {passed}{Colour.RESET}")
 
 
+def findings_to_json(
+    findings: list[Finding],
+    config_path: Path | None,
+    attempted: list[Path],
+    exit_code: int,
+) -> dict[str, Any]:
+    crit = sum(1 for x in findings if x.severity == "CRITICAL")
+    warn = sum(1 for x in findings if x.severity == "WARN")
+    passed = sum(1 for x in findings if x.severity == "PASS")
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "config_path_used": str(config_path) if config_path else None,
+        "config_paths_attempted": [str(p) for p in attempted],
+        "findings": [
+            {"severity": f.severity, "check": f.check, "details": f.details}
+            for f in findings
+        ],
+        "summary": {
+            "critical": crit,
+            "warnings": warn,
+            "pass": passed,
+            "total": len(findings),
+        },
+        "exit_code": exit_code,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audit OpenClaw deployment security posture")
     parser.add_argument("--config", help="Path to OpenClaw config file (optional)")
+    parser.add_argument("--json", action="store_true", help="Output findings as JSON")
     args = parser.parse_args()
 
     home = Path(os.path.expanduser("~"))
@@ -223,8 +251,14 @@ def main() -> int:
         check_feishu(config, home),
     ]
 
-    print_findings(findings)
-    return 2 if any(f.severity == "CRITICAL" for f in findings) else 0
+    exit_code = 2 if any(f.severity == "CRITICAL" for f in findings) else 0
+
+    if args.json:
+        print(json.dumps(findings_to_json(findings, config_path, attempted, exit_code), indent=2))
+    else:
+        print_findings(findings)
+
+    return exit_code
 
 
 if __name__ == "__main__":
