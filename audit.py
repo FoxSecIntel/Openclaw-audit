@@ -183,6 +183,28 @@ def check_plaintext_api_keys(config: dict[str, Any] | None, config_hint: str) ->
     return Finding("PASS", "Plaintext API keys", "No obvious plaintext API key fields detected")
 
 
+def check_openclaw_dir_permissions(home: Path) -> Finding:
+    openclaw_dir = home / ".openclaw"
+    if not openclaw_dir.exists():
+        return Finding("WARN", "OpenClaw directory permissions", f"Directory not found: {openclaw_dir}")
+
+    try:
+        mode = openclaw_dir.stat().st_mode & 0o777
+    except Exception as exc:
+        return Finding("WARN", "OpenClaw directory permissions", f"Could not read permissions for {openclaw_dir}: {exc}")
+
+    mode_str = oct(mode)
+
+    if mode == 0o700:
+        return Finding("PASS", "OpenClaw directory permissions", f"{openclaw_dir} is locked down ({mode_str})")
+
+    # Group/other readable, writable, or executable bits present
+    if (mode & 0o077) != 0:
+        return Finding("CRITICAL", "OpenClaw directory permissions", f"{openclaw_dir} is too permissive ({mode_str}); expected 0o700")
+
+    return Finding("WARN", "OpenClaw directory permissions", f"{openclaw_dir} mode is {mode_str}; recommended 0o700")
+
+
 def colour_for(sev: str) -> str:
     return {
         "PASS": Colour.GREEN,
@@ -248,6 +270,7 @@ def main() -> int:
         check_version(),
         check_plaintext_api_keys(config, hint),
         check_gateway_bind(config, hint),
+        check_openclaw_dir_permissions(home),
         check_feishu(config, home),
     ]
 

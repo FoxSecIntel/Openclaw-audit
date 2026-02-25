@@ -21,7 +21,9 @@ The current `audit.py` release evaluates:
    - Scans discovered OpenClaw config files (`~/.openclaw/config.json`, `~/.openclaw/openclaw.json`, and root equivalents) for likely plaintext API keys and secrets.
 3. **Gateway exposure check**
    - Detects risky bind settings such as `0.0.0.0`.
-4. **Feishu extension check**
+4. **Environment and permissions check**
+   - Evaluates `~/.openclaw` directory permissions and flags non-`700` modes.
+5. **Feishu extension check**
    - Detects Feishu extension indicators linked to **CVE-2026-26321** review requirements.
 
 ## Architecture
@@ -115,6 +117,7 @@ Exit code behaviour:
 | OpenClaw version below 2026.1.29 | Critical | Upgrade OpenClaw to a patched release and validate runtime version post-deploy |
 | Potential plaintext API keys in config | Critical | Move secrets to environment or secret manager, rotate exposed keys, remove plaintext values |
 | Gateway bound to 0.0.0.0 | Critical | Bind to loopback (`127.0.0.1` or `loopback`) and expose only through controlled proxy or private network |
+| `~/.openclaw` permissions not `700` | Warning/Critical | Restrict directory permissions to owner-only with `chmod 700 ~/.openclaw` and verify ownership |
 | Feishu extension detected | Warning/Critical | Disable or remove Feishu integration unless explicitly required and patched; review extension source and access scope |
 
 ## Engineering notes
