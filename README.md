@@ -25,6 +25,8 @@ The current `audit.py` release evaluates:
    - Evaluates `~/.openclaw` directory permissions and flags non-`700` modes.
 5. **Feishu extension check**
    - Detects Feishu extension indicators linked to **CVE-2026-26321** review requirements.
+6. **Skill permission heatmap**
+   - Performs static analysis of installed OpenClaw skills under `~/.openclaw/skills/` and categorises risk indicators.
 
 ## Architecture
 
@@ -36,11 +38,35 @@ flowchart TD
     C --> E[Gateway bind assessment]
     A --> P[Directory permission check ~/.openclaw mode]
     C --> F[Plugin and Feishu checks]
+    A --> S[Skill Permission Heatmap analysis]
+    S --> T[Skill risk table: critical or moderate or low]
     A --> G[Terminal output mode]
     A --> J[JSON output mode]
     G --> H[Critical, warning, pass summary]
     J --> K[Structured findings + summary + exit code]
 ```
+
+## 🛡️ Skill Permission Heatmap
+
+The auditor now includes a Skill Permission Heatmap for agent skill manifests.
+
+It inspects `SKILL.md` files under `~/.openclaw/skills/` and performs static keyword analysis to identify risky capability patterns before runtime. This helps reduce supply-chain risk and lowers the chance of Agentic Cascade Failures caused by unsafe skill composition.
+
+Risk categorisation:
+
+- 🔴 **CRITICAL**: `sudo`, `exec: true`, `chmod`, `base64`, `/bin/bash`, `ssh-add`
+- 🟡 **MODERATE**: `curl`, `wget`, `http`, `api_key`, `token`, `requests`
+- 🟢 **LOW**: no matching high-risk indicators
+
+Sample output:
+
+| Skill Name | Risk Level | Indicators Found |
+|---|---|---|
+| infra-deploy | CRITICAL | sudo, /bin/bash, chmod |
+| threat-feed-sync | MODERATE | curl, token |
+| weather-helper | LOW | none |
+
+This feature is intended to support Agentic Posture Management by making privilege and execution intent visible during audit time.
 
 ## Threat model
 

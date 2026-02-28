@@ -18,8 +18,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Dict, List
 
 MIN_SAFE_VERSION = "2026.1.29"  # below this is vulnerable to CVE-2026-25253
 
@@ -37,6 +36,10 @@ class Finding:
     severity: str  # PASS, WARN, CRITICAL, INFO
     check: str
     details: str
+
+
+CRITICAL_SKILL_INDICATORS = ["sudo", "exec: true", "chmod", "base64", "/bin/bash", "ssh-add"]
+MODERATE_SKILL_INDICATORS = ["curl", "wget", "http", "api_key", "token", "requests"]
 
 
 def parse_version(ver: str) -> tuple[int, ...]:
@@ -205,6 +208,89 @@ def check_openclaw_dir_permissions(home: Path) -> Finding:
     return Finding("WARN", "OpenClaw directory permissions", f"{openclaw_dir} mode is {mode_str}; recommended 0o700")
 
 
+def analyse_skill_content(content: str) -> tuple[str, List[str]]:
+    text = content.lower()
+    indicators: List[str] = []
+
+    critical_hits = [k for k in CRITICAL_SKILL_INDICATORS if k in text]
+    moderate_hits = [k for k in MODERATE_SKILL_INDICATORS if k in text]
+
+    indicators.extend(critical_hits)
+    indicators.extend([k for k in moderate_hits if k not in indicators])
+
+    if critical_hits:
+        return "CRITICAL", indicators
+    if moderate_hits:
+        return "MODERATE", indicators
+    return "LOW", indicators
+
+
+def scan_skill_permission_heatmap(home: Path) -> tuple[List[Dict[str, Any]], Finding]:
+    skills_dir = home / ".openclaw" / "skills"
+    rows: List[Dict[str, Any]] = []
+
+    if not skills_dir.exists():
+        return rows, Finding("WARN", "Skill Permission Heatmap", f"Skills directory not found: {skills_dir}")
+
+    if not skills_dir.is_dir():
+        return rows, Finding("WARN", "Skill Permission Heatmap", f"Skills path is not a directory: {skills_dir}")
+
+    for child in sorted(skills_dir.iterdir()):
+        if not child.is_dir():
+            continue
+
+        skill_md = child / "SKILL.md"
+        if not skill_md.exists():
+            continue
+
+        try:
+            content = skill_md.read_text(encoding="utf-8", errors="ignore")
+            risk, indicators = analyse_skill_content(content)
+            rows.append(
+                {
+                    "skill": child.name,
+                    "risk": risk,
+                    "indicators": indicators,
+                    "path": str(skill_md),
+                }
+            )
+        except Exception as exc:
+            rows.append(
+                {
+                    "skill": child.name,
+                    "risk": "UNKNOWN",
+                    "indicators": [f"read_error:{exc}"],
+                    "path": str(skill_md),
+                }
+            )
+
+    if not rows:
+        return rows, Finding("INFO", "Skill Permission Heatmap", f"No SKILL.md files found under {skills_dir}")
+
+    critical_count = sum(1 for r in rows if r["risk"] == "CRITICAL")
+    moderate_count = sum(1 for r in rows if r["risk"] == "MODERATE")
+    low_count = sum(1 for r in rows if r["risk"] == "LOW")
+
+    severity = "WARN" if critical_count > 0 else "PASS"
+    details = (
+        f"Analysed {len(rows)} skills: critical={critical_count}, moderate={moderate_count}, low={low_count}"
+    )
+    return rows, Finding(severity, "Skill Permission Heatmap", details)
+
+
+def print_skill_heatmap(rows: List[Dict[str, Any]]) -> None:
+    print("\n## Skill Permission Heatmap")
+    if not rows:
+        print("No skill data available.")
+        return
+
+    print("| Skill Name | Risk Level | Indicators Found |")
+    print("|---|---|---|")
+    for row in rows:
+        indicators = ", ".join(row.get("indicators", [])) if row.get("indicators") else "none"
+        print(f"| {row.get('skill','unknown')} | {row.get('risk','UNKNOWN')} | {indicators} |")
+
+
 def colour_for(sev: str) -> str:
     return {
         "PASS": Colour.GREEN,
@@ -232,6 +318,7 @@ def findings_to_json(
     findings: list[Finding],
     config_path: Path | None,
     attempted: list[Path],
+    skill_heatmap: List[Dict[str, Any]],
     exit_code: int,
 ) -> dict[str, Any]:
     crit = sum(1 for x in findings if x.severity == "CRITICAL")
@@ -252,6 +339,7 @@ def findings_to_json(
             "pass": passed,
             "total": len(findings),
         },
+        "skill_permission_heatmap": skill_heatmap,
         "exit_code": exit_code,
     }
 
@@ -266,20 +354,24 @@ def main() -> int:
     config, config_path, attempted = resolve_config(args.config)
     hint = str(config_path) if config_path else f"tried: {', '.join(str(p) for p in attempted)}"
 
+    skill_rows, skill_finding = scan_skill_permission_heatmap(home)
+
     findings: list[Finding] = [
         check_version(),
         check_plaintext_api_keys(config, hint),
         check_gateway_bind(config, hint),
         check_openclaw_dir_permissions(home),
         check_feishu(config, home),
+        skill_finding,
     ]
 
     exit_code = 2 if any(f.severity == "CRITICAL" for f in findings) else 0
 
     if args.json:
-        print(json.dumps(findings_to_json(findings, config_path, attempted, exit_code), indent=2))
+        print(json.dumps(findings_to_json(findings, config_path, attempted, skill_rows, exit_code), indent=2))
     else:
         print_findings(findings)
+        print_skill_heatmap(skill_rows)
 
     return exit_code
 
