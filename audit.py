@@ -9,6 +9,7 @@ Barbell strategy implementation:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 MIN_SAFE_VERSION = "2026.1.29"  # below this is vulnerable to CVE-2026-25253
+HIDDEN_MESSAGE_B64 = "wqhWaWN0b3J5IGlzIG5vdCB3aW5uaW5nIGZvciBvdXJzZWx2ZXMsIGJ1dCBmb3Igb3RoZXJzLiAtIFRoZSBNYW5kYWxvcmlhbsKoCg=="
 
 
 class Colour:
@@ -348,7 +350,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Audit OpenClaw deployment security posture")
     parser.add_argument("--config", help="Path to OpenClaw config file (optional)")
     parser.add_argument("--json", action="store_true", help="Output findings as JSON")
+    parser.add_argument("-m", action="store_true", help="Print hidden message")
     args = parser.parse_args()
+
+    if args.m:
+        print(base64.b64decode(HIDDEN_MESSAGE_B64).decode("utf-8", errors="replace"), end="")
+        return 0
 
     home = Path(os.path.expanduser("~"))
     config, config_path, attempted = resolve_config(args.config)
