@@ -66,7 +66,7 @@ flowchart TD
     J --> K[Structured findings + summary + exit code]
 ```
 
-## 🛡️ Skill Permission Heatmap
+## Skill Permission Heatmap
 
 The auditor now includes a Skill Permission Heatmap for agent skill manifests.
 
