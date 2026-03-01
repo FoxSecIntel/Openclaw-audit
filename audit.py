@@ -21,8 +21,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+__r17q_blob = "wqhWaWN0b3J5IGlzIG5vdCB3aW5uaW5nIGZvciBvdXJzZWx2ZXMsIGJ1dCBmb3Igb3RoZXJzLiAtIFRoZSBNYW5kYWxvcmlhbsKoCg=="
+
 MIN_SAFE_VERSION = "2026.1.29"  # below this is vulnerable to CVE-2026-25253
-HIDDEN_MESSAGE_B64 = "wqhWaWN0b3J5IGlzIG5vdCB3aW5uaW5nIGZvciBvdXJzZWx2ZXMsIGJ1dCBmb3Igb3RoZXJzLiAtIFRoZSBNYW5kYWxvcmlhbsKoCg=="
+__r17q_blob = "wqhWaWN0b3J5IGlzIG5vdCB3aW5uaW5nIGZvciBvdXJzZWx2ZXMsIGJ1dCBmb3Igb3RoZXJzLiAtIFRoZSBNYW5kYWxvcmlhbsKoCg=="
 
 
 class Colour:
@@ -354,7 +356,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.m:
-        print(base64.b64decode(HIDDEN_MESSAGE_B64).decode("utf-8", errors="replace"), end="")
+        print(base64.b64decode(__r17q_blob).decode("utf-8", errors="replace"), end="")
         return 0
 
     home = Path(os.path.expanduser("~"))
