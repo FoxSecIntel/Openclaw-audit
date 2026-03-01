@@ -10,8 +10,8 @@ A Python deployment auditor for OpenClaw security posture checks.
 
 ## Demo media
 
-- Screenshot set: `docs/media/` (recommended next add: terminal output for PASS/WARN/CRITICAL)
-- Demo GIF target: 30-second run from `python3 audit.py` to remediation summary
+- Screenshot: ![openclaw-audit terminal screenshot](docs/media/terminal-screenshot.png)
+- Demo GIF: ![openclaw-audit demo](docs/media/demo.gif)
 
 ## Project overview
 
