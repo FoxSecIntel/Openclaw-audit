@@ -1,17 +1,26 @@
+![Status](https://img.shields.io/badge/status-maintained-brightgreen)
+![Python](https://img.shields.io/badge/python-3.10-blue)
+
 # openclaw-audit
 
-A Python deployment auditor for OpenClaw security posture checks.
+A deployment auditing utility focused on practical OpenClaw security posture checks.
 
-## Why this matters
+## Why this project
 
-- **Impact:** Reduces deployment risk by surfacing critical misconfiguration and exposure issues quickly.
-- **Scale:** Supports host-by-host audits and pipeline integration through JSON output.
+- **Impact:** Surfaces critical misconfiguration and exposure issues before they become incidents.
+- **Scale:** Supports host-by-host auditing and pipeline integration through JSON output.
 - **Use case:** Security baselining for OpenClaw deployments in production and lab environments.
 
 ## Demo media
 
 - Screenshot: ![openclaw-audit terminal screenshot](docs/media/terminal-screenshot.png)
 - Demo GIF: ![openclaw-audit demo](docs/media/demo.gif)
+
+## Capability snapshot
+
+- Version and CVE exposure checks
+- Secret handling and gateway exposure checks
+- Skill permission heatmap and policy-focused findings
 
 ## Project overview
 
