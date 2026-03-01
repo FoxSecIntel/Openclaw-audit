@@ -2,6 +2,17 @@
 
 A Python deployment auditor for OpenClaw security posture checks.
 
+## Why this matters
+
+- **Impact:** Reduces deployment risk by surfacing critical misconfiguration and exposure issues quickly.
+- **Scale:** Supports host-by-host audits and pipeline integration through JSON output.
+- **Use case:** Security baselining for OpenClaw deployments in production and lab environments.
+
+## Demo media
+
+- Screenshot set: `docs/media/` (recommended next add: terminal output for PASS/WARN/CRITICAL)
+- Demo GIF target: 30-second run from `python3 audit.py` to remediation summary
+
 ## Project overview
 
 `openclaw-audit` is a lightweight host-side auditing tool for engineering teams running OpenClaw in production or lab environments. It focuses on high-value checks that map directly to known operational risks and selected CVEs.
