@@ -184,7 +184,6 @@ Exit code behaviour:
 - Script is designed for predictable behaviour in CI and server shells.
 - Extend checks by adding pure functions that return structured findings.
 
-
 ## Quick Demo
 
 ```bash
@@ -192,7 +191,6 @@ Exit code behaviour:
 # 2) Request JSON output
 # 3) Pipe into jq for analyst workflows
 ```
-
 
 ## Licence
 
