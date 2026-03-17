@@ -13,8 +13,7 @@ A deployment auditing utility focused on practical OpenClaw security posture che
 
 ## Demo media
 
-- Screenshot: ![openclaw-audit terminal screenshot](docs/media/terminal-screenshot.png)
-- Demo GIF: ![openclaw-audit demo](docs/media/demo.gif)
+- Screenshot: ![openclaw-audit terminal output](docs/media/openclaw-audit-terminal-output.jpg)
 
 ## Capability snapshot
 
