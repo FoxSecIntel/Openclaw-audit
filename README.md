@@ -19,8 +19,12 @@ A deployment auditing utility focused on practical OpenClaw security posture che
 ## Capability snapshot
 
 - Version and CVE exposure checks
-- Secret handling and gateway exposure checks
+- Secret handling quality checks (weak vs strong plaintext detection)
+- Gateway and Control UI policy checks (`bind`, `allowedOrigins`, `trustedProxies`)
+- Filesystem permissions audit for OpenClaw paths and config
 - Skill permission heatmap and policy-focused findings
+- Regression snapshot baseline and delta detection between runs
+- Structured findings with `severity`, `confidence`, `data_source`, remediation, rollback, and impact
 
 ## Project overview
 
@@ -39,10 +43,12 @@ The current `audit.py` release evaluates:
    - Flags OpenClaw versions below `2026.1.29` as vulnerable to **CVE-2026-25253**.
 2. **Secret handling check**
    - Scans discovered OpenClaw config files (`~/.openclaw/config.json`, `~/.openclaw/openclaw.json`, and root equivalents) for likely plaintext API keys and secrets.
-3. **Gateway exposure check**
+3. **Gateway and Control UI policy checks**
    - Detects risky bind settings such as `0.0.0.0`.
+   - Validates `gateway.controlUi.allowedOrigins` and flags wildcard trust.
+   - Validates `gateway.trustedProxies` configuration posture.
 4. **Environment and permissions check**
-   - Evaluates `~/.openclaw` directory permissions and flags non-`700` modes.
+   - Evaluates `~/.openclaw` directory and key OpenClaw paths (`logs`, `sessions`, config file) for restrictive permissions.
 5. **Feishu extension check**
    - Detects Feishu extension indicators linked to **CVE-2026-26321** review requirements.
 6. **Skill permission heatmap**
@@ -143,6 +149,9 @@ python3 audit.py --config /root/.openclaw/openclaw.json
 
 # JSON output for CI, pipelines, and automation
 python3 audit.py --json
+
+# Store and compare against a specific baseline snapshot
+python3 audit.py --baseline ~/.openclaw/audit-baseline.json
 ```
 
 JSON output includes:
