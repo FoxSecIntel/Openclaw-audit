@@ -166,7 +166,7 @@ JSON output includes:
 Exit code behaviour:
 
 - `0`: no critical findings
-- `2`: one or more critical findings
+- `1`: one or more critical findings
 
 ## Remediation matrix
 

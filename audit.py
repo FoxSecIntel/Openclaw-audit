@@ -23,10 +23,12 @@ MIN_SAFE_VERSION = "2026.1.29"
 
 
 class Colour:
-    RED = "\033[91m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    CYAN = "\033[96m"
+    # ANSI standard palette for terminal hierarchy
+    CRITICAL = "\033[1;31m"  # bold red
+    WARN = "\033[0;33m"      # yellow
+    PASS = "\033[0;32m"      # green
+    INFO = "\033[0;36m"      # cyan
+    LABEL = "\033[1;37m"     # bold white
     RESET = "\033[0m"
 
 
@@ -433,25 +435,80 @@ def print_skill_heatmap(rows: List[Dict[str, Any]]) -> None:
 
 
 def colour_for(sev: str) -> str:
-    return {"PASS": Colour.GREEN, "CRITICAL": Colour.RED, "WARN": Colour.YELLOW, "INFO": Colour.CYAN}.get(sev, Colour.RESET)
+    return {
+        "PASS": Colour.PASS,
+        "CRITICAL": Colour.CRITICAL,
+        "WARN": Colour.WARN,
+        "INFO": Colour.INFO,
+    }.get(sev, Colour.RESET)
+
+
+def severity_order(sev: str) -> int:
+    return {"CRITICAL": 0, "WARN": 1, "PASS": 2, "INFO": 3}.get(sev, 4)
+
+
+def symbol_for(sev: str) -> str:
+    return {"CRITICAL": "[!]", "WARN": "[?]", "PASS": "[✓]", "INFO": "[i]"}.get(sev, "[ ]")
+
+
+def location_for(f: Finding) -> str:
+    # Keep a clear location label even when the source is abstract.
+    return f.data_source
+
+
+def print_section(title: str) -> None:
+    print(f"{Colour.LABEL}-- {title} --{Colour.RESET}")
 
 
 def print_findings(findings: list[Finding]) -> None:
-    print(f"{Colour.CYAN}OpenClaw Deployment Audit{Colour.RESET}")
+    today = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
+    print(f"{Colour.LABEL}OpenClaw Deployment Audit | {today}{Colour.RESET}")
     print("=" * 110)
-    for f in findings:
-        c = colour_for(f.severity)
-        print(f"{c}[{f.severity:<8}]{Colour.RESET} {f.check:<24} {f.details}")
-        print(f"          confidence={f.confidence} source={f.data_source}")
-        print(f"          remediation: {f.remediation}")
-        print(f"          rollback:    {f.rollback}")
-        print(f"          impact:      {f.impact}")
 
-    crit = sum(1 for x in findings if x.severity == "CRITICAL")
-    warn = sum(1 for x in findings if x.severity == "WARN")
-    passed = sum(1 for x in findings if x.severity == "PASS")
+    sorted_findings = sorted(findings, key=lambda x: (severity_order(x.severity), x.check.lower()))
+    criticals = [f for f in sorted_findings if f.severity == "CRITICAL"]
+    warns = [f for f in sorted_findings if f.severity == "WARN"]
+    passes = [f for f in sorted_findings if f.severity in {"PASS", "INFO"}]
+
+    if criticals:
+        print_section("CRITICAL")
+        for f in criticals:
+            c = colour_for(f.severity)
+            print(f"{c}{symbol_for(f.severity)} {f.check}: {f.details}{Colour.RESET}")
+            print(f"    {Colour.LABEL}Location:{Colour.RESET} {location_for(f)}")
+            print(f"    {Colour.LABEL}Source:{Colour.RESET} {f.data_source}")
+            print(f"    {Colour.LABEL}FIX:{Colour.RESET} {f.remediation}")
+            print(f"    {Colour.LABEL}IMPACT:{Colour.RESET} {f.impact}")
+
+    if warns:
+        print_section("WARN")
+        for f in warns:
+            c = colour_for(f.severity)
+            print(f"{c}{symbol_for(f.severity)} {f.check}: {f.details}{Colour.RESET}")
+            print(f"    {Colour.LABEL}Location:{Colour.RESET} {location_for(f)}")
+            print(f"    {Colour.LABEL}Source:{Colour.RESET} {f.data_source}")
+            print(f"    {Colour.LABEL}FIX:{Colour.RESET} {f.remediation}")
+            print(f"    {Colour.LABEL}IMPACT:{Colour.RESET} {f.impact}")
+
+    if passes:
+        print_section("PASS & INFO")
+        for f in passes:
+            c = colour_for(f.severity)
+            detail = f" ({f.details})" if f.severity == "PASS" else f" - {f.details}"
+            print(f"{c}{symbol_for(f.severity)} {f.check}{detail}{Colour.RESET}")
+
+    crit = len(criticals)
+    warn = len(warns)
+    passed = sum(1 for x in sorted_findings if x.severity == "PASS")
+    info = sum(1 for x in sorted_findings if x.severity == "INFO")
     print("-" * 110)
-    print(f"{Colour.RED}Critical: {crit}{Colour.RESET}  {Colour.YELLOW}Warnings: {warn}{Colour.RESET}  {Colour.GREEN}Pass: {passed}{Colour.RESET}")
+    print(
+        f"{Colour.CRITICAL}Critical: {crit}{Colour.RESET}  "
+        f"{Colour.WARN}Warnings: {warn}{Colour.RESET}  "
+        f"{Colour.PASS}Pass: {passed}{Colour.RESET}  "
+        f"{Colour.INFO}Info: {info}{Colour.RESET}"
+    )
+    print(f"{Colour.LABEL}Audit the Noise. Secure the Signal.{Colour.RESET}")
 
 
 def findings_to_json(findings: list[Finding], config_path: Path | None, attempted: list[Path], skill_heatmap: List[Dict[str, Any]], exit_code: int) -> dict[str, Any]:
@@ -496,7 +553,8 @@ def main() -> int:
     baseline_finding = check_regression_snapshot(findings, Path(args.baseline).expanduser())
     findings.append(baseline_finding)
 
-    exit_code = 2 if any(f.severity == "CRITICAL" for f in findings) else 0
+    # CI-compatible: 1 when any critical finding is present, else 0.
+    exit_code = 1 if any(f.severity == "CRITICAL" for f in findings) else 0
 
     if args.json:
         print(json.dumps(findings_to_json(findings, config_path, attempted, skill_rows, exit_code), indent=2))
