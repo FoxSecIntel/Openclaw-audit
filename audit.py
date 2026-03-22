@@ -527,10 +527,80 @@ def findings_to_json(findings: list[Finding], config_path: Path | None, attempte
     }
 
 
+def findings_to_markdown(
+    findings: list[Finding],
+    config_path: Path | None,
+    attempted: list[Path],
+    skill_heatmap: List[Dict[str, Any]],
+    exit_code: int,
+) -> str:
+    now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    crit = sum(1 for x in findings if x.severity == "CRITICAL")
+    warn = sum(1 for x in findings if x.severity == "WARN")
+    passed = sum(1 for x in findings if x.severity == "PASS")
+    info = sum(1 for x in findings if x.severity == "INFO")
+
+    lines: list[str] = []
+    lines.append("# OpenClaw Deployment Audit Report")
+    lines.append("")
+    lines.append(f"- Generated: `{now}`")
+    lines.append(f"- Config used: `{str(config_path) if config_path else 'none found'}`")
+    lines.append(f"- Paths attempted: `{', '.join(str(p) for p in attempted)}`")
+    lines.append(f"- Exit code: `{exit_code}`")
+    lines.append("")
+    lines.append("## Summary")
+    lines.append("")
+    lines.append(f"- Critical: **{crit}**")
+    lines.append(f"- Warnings: **{warn}**")
+    lines.append(f"- Pass: **{passed}**")
+    lines.append(f"- Info: **{info}**")
+    lines.append(f"- Total findings: **{len(findings)}**")
+    lines.append("")
+
+    lines.append("## Findings")
+    lines.append("")
+    lines.append("| Severity | Check | Details | Source | Confidence |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    for f in sorted(findings, key=lambda x: (severity_order(x.severity), x.check.lower())):
+        details = f.details.replace("|", "\\|").replace("\n", " ")
+        source = f.data_source.replace("|", "\\|")
+        lines.append(
+            f"| {f.severity} | {f.check} | {details} | {source} | {f.confidence} |"
+        )
+
+    lines.append("")
+    lines.append("## Remediation Guidance")
+    lines.append("")
+    for f in sorted(findings, key=lambda x: (severity_order(x.severity), x.check.lower())):
+        if f.severity in {"CRITICAL", "WARN"}:
+            lines.append(f"### {f.check} ({f.severity})")
+            lines.append("")
+            lines.append(f"- Fix: {f.remediation}")
+            lines.append(f"- Impact: {f.impact}")
+            lines.append(f"- Rollback: {f.rollback}")
+            lines.append("")
+
+    lines.append("## Skill Permission Heatmap")
+    lines.append("")
+    if not skill_heatmap:
+        lines.append("No skill data available.")
+    else:
+        lines.append("| Skill Name | Risk Level | Indicators Found |")
+        lines.append("| --- | --- | --- |")
+        for row in skill_heatmap:
+            indicators = ", ".join(row.get("indicators", [])) if row.get("indicators") else "none"
+            indicators = indicators.replace("|", "\\|")
+            lines.append(f"| {row.get('skill', 'unknown')} | {row.get('risk', 'UNKNOWN')} | {indicators} |")
+
+    lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audit OpenClaw deployment security posture")
     parser.add_argument("--config", help="Path to OpenClaw config file (optional)")
-    parser.add_argument("--json", action="store_true", help="Output findings as JSON")
+    parser.add_argument("--json", action="store_true", help="Output findings as JSON (legacy alias for --output json)")
+    parser.add_argument("--output", choices=["terminal", "json", "markdown"], default="terminal", help="Output format")
     parser.add_argument("--baseline", default=str(Path(os.path.expanduser("~")) / ".openclaw" / "audit-baseline.json"), help="Path to regression baseline file")
     args = parser.parse_args()
 
@@ -556,8 +626,12 @@ def main() -> int:
     # CI-compatible: 1 when any critical finding is present, else 0.
     exit_code = 1 if any(f.severity == "CRITICAL" for f in findings) else 0
 
-    if args.json:
+    output_mode = "json" if args.json else args.output
+
+    if output_mode == "json":
         print(json.dumps(findings_to_json(findings, config_path, attempted, skill_rows, exit_code), indent=2))
+    elif output_mode == "markdown":
+        print(findings_to_markdown(findings, config_path, attempted, skill_rows, exit_code), end="")
     else:
         print_findings(findings)
         print_skill_heatmap(skill_rows)

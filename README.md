@@ -147,11 +147,21 @@ python3 audit.py
 python3 audit.py --config /root/.openclaw/openclaw.json
 
 # JSON output for CI, pipelines, and automation
-python3 audit.py --json
+python3 audit.py --output json
+
+# Markdown output for sharing in tickets, PRs, or chat
+python3 audit.py --output markdown
 
 # Store and compare against a specific baseline snapshot
 python3 audit.py --baseline ~/.openclaw/audit-baseline.json
 ```
+
+Output formats:
+
+- `--output terminal` (default): colourised severity-first terminal report
+- `--output json`: structured machine-readable output
+- `--output markdown`: shareable report format with findings and remediation sections
+- `--json`: legacy alias for `--output json`
 
 JSON output includes:
 
