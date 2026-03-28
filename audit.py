@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 import math
 import os
 import re
@@ -527,6 +528,119 @@ def findings_to_json(findings: list[Finding], config_path: Path | None, attempte
     }
 
 
+def check_identity_file_integrity() -> list[Finding]:
+    findings: list[Finding] = []
+    workspace = Path.home() / ".openclaw" / "workspace"
+    targets = ["AGENTS.md", "SOUL.md", "MEMORY.md"]
+    baseline_path = Path.home() / ".openclaw" / "identity-integrity.json"
+
+    def digest(path: Path) -> str:
+        h = hashlib.sha256()
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    if not baseline_path.exists():
+        findings.append(
+            Finding(
+                severity="WARN",
+                check="identity_file_integrity_baseline",
+                details=f"Integrity baseline file not found at {baseline_path}",
+                data_source="filesystem",
+                confidence="high",
+                remediation="Create and maintain a SHA-256 baseline for AGENTS.md, SOUL.md, and MEMORY.md.",
+                impact="Tampering in identity/memory files may persist across sessions without detection.",
+                rollback="Generate baseline from known-good files and re-run audit.",
+            )
+        )
+        return findings
+
+    try:
+        baseline_data = json.loads(baseline_path.read_text(encoding="utf-8"))
+        if not isinstance(baseline_data, dict):
+            baseline_data = {}
+    except Exception:
+        findings.append(
+            Finding(
+                severity="WARN",
+                check="identity_file_integrity_baseline",
+                details=f"Baseline file exists but is not valid JSON: {baseline_path}",
+                data_source="filesystem",
+                confidence="high",
+                remediation="Rewrite baseline file as a JSON object of filename to SHA-256 digest.",
+                impact="Invalid baseline prevents integrity validation.",
+                rollback="Restore previous valid baseline backup.",
+            )
+        )
+        return findings
+
+    for name in targets:
+        fpath = workspace / name
+        if not fpath.exists():
+            findings.append(
+                Finding(
+                    severity="WARN",
+                    check="identity_file_integrity_target",
+                    details=f"Target file missing: {fpath}",
+                    data_source="filesystem",
+                    confidence="high",
+                    remediation="Restore missing identity/memory file from trusted backup.",
+                    impact="Missing file weakens continuity and integrity guarantees.",
+                    rollback="Recreate file with minimal expected content and verify baseline.",
+                )
+            )
+            continue
+
+        current_hash = digest(fpath)
+        expected_hash = str(baseline_data.get(name, "")).strip().lower()
+
+        if not expected_hash:
+            findings.append(
+                Finding(
+                    severity="WARN",
+                    check="identity_file_integrity_target",
+                    details=f"Baseline hash missing for {name}",
+                    data_source="filesystem",
+                    confidence="high",
+                    remediation=f"Add {name} hash to {baseline_path}",
+                    impact="File cannot be validated against a trusted baseline.",
+                    rollback="Populate baseline from known-good state.",
+                )
+            )
+            continue
+
+        if current_hash.lower() != expected_hash:
+            findings.append(
+                Finding(
+                    severity="CRITICAL",
+                    check="identity_file_integrity_target",
+                    details=f"Hash mismatch detected for {name}",
+                    data_source="filesystem",
+                    confidence="high",
+                    remediation="Investigate unauthorised change and restore trusted file content.",
+                    impact="Compromised identity/memory files can persist unsafe behaviour across sessions.",
+                    rollback="Restore from signed backup and update baseline only after validation.",
+                )
+            )
+
+    if not findings:
+        findings.append(
+            Finding(
+                severity="PASS",
+                check="identity_file_integrity_target",
+                details="Identity and memory files match baseline hashes.",
+                data_source="filesystem",
+                confidence="high",
+                remediation="Keep baseline reviewed after legitimate updates.",
+                impact="Improves resistance to persistent prompt/config tampering.",
+                rollback="N/A",
+            )
+        )
+
+    return findings
+
+
 def findings_to_markdown(
     findings: list[Finding],
     config_path: Path | None,
@@ -622,6 +736,8 @@ def main() -> int:
 
     baseline_finding = check_regression_snapshot(findings, Path(args.baseline).expanduser())
     findings.append(baseline_finding)
+
+    findings.extend(check_identity_file_integrity())
 
     # CI-compatible: 1 when any critical finding is present, else 0.
     exit_code = 1 if any(f.severity == "CRITICAL" for f in findings) else 0
