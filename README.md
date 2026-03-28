@@ -156,6 +156,24 @@ python3 audit.py --output markdown
 python3 audit.py --baseline ~/.openclaw/audit-baseline.json
 ```
 
+### Identity and memory file integrity baseline
+
+To enable tamper checks for `AGENTS.md`, `SOUL.md`, and `MEMORY.md`, generate the baseline hash file once from a known-good state:
+
+```bash
+./scripts/generate-identity-integrity-baseline.sh
+```
+
+This writes:
+
+- `~/.openclaw/identity-integrity.json`
+
+After generating it, run the audit normally and it will report:
+
+- `PASS` when file hashes match baseline
+- `WARN` when baseline entries are missing
+- `CRITICAL` when file content has changed unexpectedly
+
 Output formats:
 
 - `--output terminal` (default): colourised severity-first terminal report
