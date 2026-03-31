@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+if [[ "${1:-}" == "-a" || "${1:-}" == "--author" ]]; then
+  echo "Author: FoxSecIntel"
+  echo "Repository: https://github.com/FoxSecIntel/openclaw-audit
+  echo "Tool: generate-identity-integrity-baseline.sh"
+  exit 0
+fi
+
 set -euo pipefail
 
 WORKSPACE="${HOME}/.openclaw/workspace"
